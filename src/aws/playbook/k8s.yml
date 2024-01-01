@@ -1,0 +1,66 @@
+---
+- name: Kubernetes Setup
+  hosts: all
+  become: yes
+  tasks:
+    - name: Install necessary packages for Kubernetes
+      apt:
+        name: "{{ item }}"
+        state: latest
+        update_cache: yes
+      loop:
+        - apt-transport-https
+        - ca-certificates
+        - curl
+        - gpg
+
+    - name: Add kubernetes gpg key
+      get_url:
+        url: https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key
+        dest: /etc/apt/keyrings/kubernetes-apt-keyring.asc
+        mode: '0644'
+        force: true
+
+    - name: Add kubernetes apt repository
+      apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.asc] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /"
+        state: present
+        update_cache: yes
+
+    - name: Install Kubernetes components
+      apt:
+        name: "{{ item }}"
+        state: latest
+        update_cache: yes
+      loop:
+        - kubelet
+        - kubeadm
+        - kubectl
+
+    - name: Hold Kubernetes packages
+      ansible.builtin.dpkg_selections:
+        name: "{{ item }}"
+        selection: hold
+      loop:
+        - kubelet
+        - kubeadm
+        - kubectl
+
+  pre_tasks:
+    - name: bridge-nf-call-ip6tables config
+      sysctl:
+        name: net.bridge.bridge-nf-call-ip6tables
+        value: '1'
+        reload: yes
+    
+    - name: bridge-nf-call-iptables config
+      sysctl:
+        name: net.bridge.bridge-nf-call-iptables
+        value: '1'
+        reload: yes
+
+    - name: ip_forward config
+      sysctl:
+        name: net.ipv4.ip_forward
+        value: '1'
+        reload: yes
