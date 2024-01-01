@@ -1,0 +1,58 @@
+---
+
+- name: Install Containerd
+  hosts: all
+  gather_facts: false
+  become: yes
+  tasks:
+    - name: Update and install containerd
+      apt:
+        update_cache: yes
+        name: containerd
+        state: latest
+
+    - name: Create containerd config directory
+      file:
+        path: /etc/containerd
+        state: directory
+
+    - name: Check containerd configuration file exists
+      ansible.builtin.stat:
+        path: /etc/containerd/config.toml
+      register: conf_exist
+
+    - name: Generate containerd default config
+      shell: containerd config default | sudo tee /etc/containerd/config.toml
+      args:
+        executable: /bin/bash
+      when: conf_exist
+
+    - name: Modify containerd to use SystemdCgroup
+      lineinfile:
+        path: /etc/containerd/config.toml
+        regexp: '^(\s*SystemdCgroup\s*=\s*).*$'
+        line: '            SystemdCgroup = true'
+      when: conf_exist
+
+    - name: Restart Containerd
+      systemd:
+        name: containerd
+        state: restarted
+
+  pre_tasks:
+    - name: Add containerd module load config
+      copy:
+        dest: /etc/modules-load.d/containerd.conf
+        content: |
+          overlay
+          br_netfilter
+
+    - name: Load overlay module
+      modprobe:
+        name: overlay
+        state: present
+
+    - name: Load br_netfilter module
+      modprobe:
+        name: br_netfilter
+        state: present

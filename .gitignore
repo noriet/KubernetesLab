@@ -1,0 +1,5 @@
+.env
+tmp/
+.terraform**
+ssh_config
+!ssh_config.j2
