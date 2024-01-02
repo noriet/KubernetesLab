@@ -1,0 +1,107 @@
+---
+
+- name: Install Docker, Minikube, Helm
+  hosts: all
+  gather_facts: false
+  become: yes
+  tasks:
+    - name: Add docker gpg key
+      get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker-apt-keyring.asc
+        mode: '0644'
+        force: true
+
+    - name: Add docker apt repository
+      apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/docker-apt-keyring.asc] https://download.docker.com/linux/ubuntu jammy stable"
+        state: present
+        update_cache: yes
+
+    - name: Add helm gpg key
+      get_url:
+        url: https://baltocdn.com/helm/signing.asc
+        dest: /etc/apt/keyrings/helm-apt-keyring.asc
+        mode: '0644'
+        force: true
+
+    - name: Add helm apt repository
+      apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/helm-apt-keyring.asc] https://baltocdn.com/helm/stable/debian/ all main"
+        state: present
+        update_cache: yes
+
+    - name: Create systemd directory for user services
+      ansible.builtin.file:
+        path: /etc/systemd/system/user@.service.d
+        state: directory
+        mode: '0755'
+
+    - name: Add delegate.conf file
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/user@.service.d/delegate.conf
+        content: |
+          [Service]
+          Delegate=cpu cpuset io memory pids
+        mode: '0644'
+
+    - name: Reload systemd daemon
+      ansible.builtin.systemd:
+        daemon_reload: yes
+
+    - name: Update and install docker-ce
+      apt:
+        update_cache: yes
+        name: docker-ce
+        state: latest
+
+    - name: Update and install uidmap
+      apt:
+        name: uidmap
+
+    - name: Update and install minikube
+      get_url:
+        url: https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+        dest: /usr/local/bin/minikube
+        mode: '0755'
+
+    - name: Update and install helm
+      apt:
+        update_cache: yes
+        name: helm
+        state: latest
+
+    - name: Check latest kubectl
+      uri:
+        url: https://dl.k8s.io/release/stable.txt
+        method: GET
+        return_content: yes
+      register: k8s_stable_release
+
+    - name: Update and install kubectl
+      get_url:
+        url: https://dl.k8s.io/release/{{k8s_stable_release.content}}/bin/linux/amd64/kubectl
+        dest: /usr/local/bin/kubectl
+        mode: '0755'
+
+    - name: Set rootless docker
+      ansible.builtin.shell:
+        cmd: /usr/bin/dockerd-rootless-setuptool.sh install
+      become: false
+
+    - name: Check minikube cluster created
+      shell: /usr/local/bin/minikube status
+      register: minikube_result
+      ignore_errors: true
+      become: false
+    
+    - name: Delete exists minikube cluster
+      ansible.builtin.shell:
+        cmd: /usr/local/bin/minikube delete
+      when: minikube_result.rc == 0
+      become: false
+
+    - name: Start minikube
+      ansible.builtin.shell:
+        cmd: /usr/local/bin/minikube start --memory=1927m --driver=docker
+      become: false

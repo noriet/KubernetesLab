@@ -1,0 +1,15 @@
+services:
+  terraform:
+    build: terraform
+    tty: true
+    stdin_open: true
+    environment:
+      - AWS_DEFAULT_PROFILE
+    volumes:
+      - ~/.aws:/root/.aws:rw
+      - ./aws:/work/aws:rw
+      - terraform-backend-minikube:/work/tfstate:rw
+    working_dir: /work/aws
+
+volumes:
+  terraform-backend-minikube:
