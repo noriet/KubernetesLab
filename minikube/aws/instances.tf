@@ -21,6 +21,9 @@ resource "aws_instance" "master" {
   key_name = aws_key_pair.keypair.key_name
   vpc_security_group_ids = [aws_security_group.master.id]
 
+  root_block_device {
+    volume_size = 20
+  }
   tags = {
     Name = "master"
   }
